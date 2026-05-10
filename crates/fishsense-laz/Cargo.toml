@@ -1,0 +1,26 @@
+[package]
+name = "fishsense-laz"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Convert fishsense-mobile SQLite captures (RGB + LiDAR depth) into LAZ point clouds for the e4e-point-cloud-viewer."
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "fishsense-laz"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+las = { version = "0.9", features = ["laz"] }
+rusqlite = { version = "0.32", features = ["bundled", "blob"] }
+thiserror = "2"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+tempfile = "3"
