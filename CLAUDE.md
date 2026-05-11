@@ -31,6 +31,7 @@ SQLite photos row
   → db.rs        schema-aware read (PRAGMA table_info; migrations are additive)
   → decode.rs    depth (f32 LE m), confidence (u8 ARKit levels), intrinsics (9×f64 K)
   → (image crate) load the RGB JPEG referenced by rgb_path
+  → upsample.rs  (optional, --upsample) joint bilateral upsample of depth, RGB-guided
   → unproject.rs scale K to depth resolution, back-project, color, filter
   → write.rs     LAS point format 2, LAZ-compressed via `las`
 lib.rs orchestrates per-photo (convert_one); main.rs is the CLI.
@@ -38,9 +39,10 @@ lib.rs orchestrates per-photo (convert_one); main.rs is the CLI.
 
 | File | Purpose |
 |---|---|
-| `crates/fishsense-laz/src/lib.rs` | `convert_one`, `ConvertOptions`, intrinsics fallback logic |
+| `crates/fishsense-laz/src/lib.rs` | `convert_one`, `ConvertOptions`, `resolve_intrinsics` |
 | `crates/fishsense-laz/src/db.rs` | `rusqlite` reads; `Schema::probe`; `PhotoRow` / `PhotoListEntry` |
 | `crates/fishsense-laz/src/decode.rs` | BLOB → typed (`Intrinsics`, `Confidence`, depth `Vec<f32>`) |
+| `crates/fishsense-laz/src/upsample.rs` | `joint_bilateral_upsample()` — RGB-guided depth densification (rayon) |
 | `crates/fishsense-laz/src/unproject.rs` | `unproject()` → `Vec<ColoredPoint>` |
 | `crates/fishsense-laz/src/write.rs` | `write_laz()` |
 | `crates/fishsense-laz/src/main.rs` | clap CLI: `list` and `convert` subcommands |
@@ -95,3 +97,6 @@ frame "right" here isn't worth the complexity.
   match that.
 - Don't widen scope speculatively (e.g. the `mask_bytes` fish segmentation is
   intentionally unused for now — add a `--fish-only` flag only if asked).
+- `--upsample` produces *interpolated* depth, not measured — keep that framing
+  in any docs/messages. Default is 1 (off); the honest sparse cloud stays the
+  default. The viewer turns the denser cloud into smaller splats on its own.

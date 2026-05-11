@@ -54,6 +54,7 @@ Options:
 | `--min-confidence low\|medium\|high` | `medium` | Drop depth pixels below this ARKit confidence level. |
 | `--intrinsics fx,fy,cx,cy` | — | Fallback K matrix at RGB resolution (see below). |
 | `--hfov-degrees N` | — | Fallback: synthesize a K from horizontal field of view. |
+| `--upsample N` | `1` | Densify the depth map by an integer factor before unprojecting (see below). |
 
 Output files are named `photo-{id:06}-{utc_unix_timestamp}.laz`. Per-row
 failures (missing JPEG, zero valid points, …) are logged and the batch
@@ -87,6 +88,32 @@ fishsense-laz convert --db database.sqlite --all --out ./clouds \
   --intrinsics 1375.0719,1375.0719,968.6433,723.04926
 ```
 
+## Denser clouds: `--upsample`
+
+ARKit `sceneDepth` is a fixed 256×192 grid — ~49k points at most, fewer after
+the confidence filter. `--upsample N` runs **joint bilateral upsampling** of
+that depth map using the high-res RGB image as an edge guide before
+unprojecting: each output pixel's depth is a weighted blend of nearby measured
+samples, where the weight drops off both with distance *and* with RGB-color
+difference, so depth edges snap to color edges instead of smearing across them.
+
+```sh
+fishsense-laz convert --db database.sqlite --all --out ./clouds \
+  --intrinsics 1375.0719,1375.0719,968.6433,723.04926 \
+  --upsample 8
+```
+
+Factor 8 puts you near the RGB resolution (~3M points). The viewer sizes each
+splat from local point density (kNN), so a denser cloud automatically renders
+with smaller splats — no viewer changes needed.
+
+Caveats: the extra depth is **interpolated, not measured**. Flat regions
+upsample cleanly; depth discontinuities can still bleed where the color guide
+doesn't separate them; and output pixels with no measured depth nearby are
+dropped rather than invented. It's also slower (parallelized across cores, but
+still seconds per photo at factor 8). Default is off (`--upsample 1`), which
+gives the honest sparse cloud. Allowed range: 1–16.
+
 ## How it works
 
 For each valid depth pixel `(u, v)` with depth `z` (meters):
@@ -106,7 +133,7 @@ camera frame; the viewer recenters and reorients on import.
 ## Notes
 
 - ARKit `sceneDepth` is a fixed 256×192 grid (~49k points max per capture,
-  fewer after the confidence filter).
+  fewer after the confidence filter) — see `--upsample` above for denser output.
 - `*.laz` is gitignored, so converted outputs won't be accidentally committed.
 - The fish segmentation mask (`mask_bytes`, when present) is not used yet.
 
