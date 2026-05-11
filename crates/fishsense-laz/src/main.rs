@@ -83,6 +83,14 @@ struct ConvertArgs {
     ///   iPad Pro:   1604.2147,1604.2147,956.5816,717.7617
     #[arg(long, value_delimiter = ',', conflicts_with = "hfov_degrees")]
     intrinsics: Option<Vec<f64>>,
+
+    /// Upsample the depth map by this integer factor before
+    /// unprojecting, using the RGB image as an edge guide (joint
+    /// bilateral upsampling), for a much denser cloud. ARKit depth is
+    /// 256x192; factor 8 gets you near RGB resolution (~3M points).
+    /// The added depth is interpolated, not measured. 1 = off (default).
+    #[arg(long, default_value_t = 1)]
+    upsample: u32,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -216,11 +224,16 @@ fn run_convert(args: &ConvertArgs) -> Result<()> {
         None => None,
     };
 
+    if !(1..=16).contains(&args.upsample) {
+        bail!("--upsample must be between 1 and 16 (got {})", args.upsample);
+    }
+
     let opts = ConvertOptions {
         min_confidence: args.min_confidence.into(),
         rgb_root,
         fallback_intrinsics,
         fallback_hfov_degrees: args.hfov_degrees,
+        upsample_factor: args.upsample,
     };
 
     let ids = if args.all {

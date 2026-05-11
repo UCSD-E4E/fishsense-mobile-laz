@@ -100,6 +100,7 @@ fn fixture_db_converts_to_laz() {
         rgb_root: dir.path().to_path_buf(),
         fallback_intrinsics: None,
         fallback_hfov_degrees: None,
+        upsample_factor: 1,
     };
     let n = convert_one(&conn, 1, &out, &opts).unwrap();
     assert_eq!(n, (depth_w * depth_h) as usize);
@@ -136,4 +137,51 @@ fn fixture_db_converts_to_laz() {
     assert!((xmax - 0.75).abs() < 1e-3);
     assert!((ymin - -0.75).abs() < 1e-3);
     assert!((ymax - 0.75).abs() < 1e-3);
+}
+
+#[test]
+fn upsample_factor_densifies_the_cloud() {
+    let dir = tempdir().unwrap();
+    let db_path = dir.path().join("fixture.sqlite");
+    let rgb_filename = "frame.jpg";
+    let depth_w = 4;
+    let depth_h = 4;
+    let factor = 3u32;
+
+    write_synthetic_db(&db_path, rgb_filename, depth_w, depth_h);
+    write_solid_jpeg(
+        &dir.path().join(rgb_filename),
+        depth_w,
+        depth_h,
+        [200, 100, 50],
+    );
+
+    let conn = db::open(&db_path).unwrap();
+    let out = dir.path().join("out.laz");
+    let opts = ConvertOptions {
+        min_confidence: Confidence::Medium,
+        rgb_root: dir.path().to_path_buf(),
+        fallback_intrinsics: None,
+        fallback_hfov_degrees: None,
+        upsample_factor: factor,
+    };
+    let n = convert_one(&conn, 1, &out, &opts).unwrap();
+    // Flat depth, solid colour → every upsampled pixel gets a value.
+    assert_eq!(n, ((depth_w * factor) * (depth_h * factor)) as usize);
+
+    let mut reader = las::Reader::from_path(&out).unwrap();
+    let pts: Vec<las::Point> = reader.points().collect::<Result<_, _>>().unwrap();
+    assert_eq!(pts.len(), n);
+    // Interpolating a constant depth keeps z = 2.0. The field of view
+    // is unchanged, but a finer grid puts the corner *pixel centres*
+    // closer to the frame edge, so the bbox grows toward (but stays
+    // inside) the full-frame extent of ±1.0 — never shrinking below the
+    // 4x4 grid's ±0.75 corners.
+    for p in &pts {
+        assert!((p.z - 2.0).abs() < 1e-3, "z={}", p.z);
+    }
+    let xmin = pts.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
+    let xmax = pts.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max);
+    assert!((-1.0..=-0.75).contains(&xmin), "xmin={xmin}");
+    assert!((0.75..=1.0).contains(&xmax), "xmax={xmax}");
 }

@@ -17,11 +17,15 @@ module_name_repetitions = "allow"
 missing_panics_doc = "allow"
 missing_errors_doc = "allow"
 cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
 cast_precision_loss = "allow"
 cast_sign_loss = "allow"
 cast_lossless = "allow"
 needless_range_loop = "allow"
 doc_markdown = "allow"
+# Geometry/image code is full of x/y pairs and short loop indices.
+similar_names = "allow"
+many_single_char_names = "allow"
 
 [profile.release]
 lto = "thin"

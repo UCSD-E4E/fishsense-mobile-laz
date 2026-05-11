@@ -73,10 +73,10 @@ pub fn unproject(
             if !z.is_finite() || z <= 0.0 {
                 continue;
             }
-            if let Some(conf) = confidence {
-                if !conf[idx].at_least(params.min_confidence) {
-                    continue;
-                }
+            if let Some(conf) = confidence
+                && !conf[idx].at_least(params.min_confidence)
+            {
+                continue;
             }
 
             // Pixel-center convention: u + 0.5, v + 0.5.
